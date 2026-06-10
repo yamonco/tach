@@ -305,6 +305,160 @@ Example output with closure:
 
 The output includes the target file itself and all files that are either directly or indirectly required by it. In this example, if `src/core.py` imports `config.py` which in turn imports `constants.py`, all of these files will appear in the closure.
 
+## tach mcp
+
+Tach can run as a [Model Context Protocol](https://modelcontextprotocol.io/) server.
+This lets MCP-compatible agents inspect, check, edit, and report on Tach projects
+without shelling out to individual Tach commands.
+
+```
+usage: tach mcp [-h]
+
+Start the Model Context Protocol (MCP) server over stdio
+
+options:
+  -h, --help  show this help message and exit
+```
+
+The server uses stdio transport. Configure your MCP client to run:
+
+```bash
+tach mcp
+```
+
+If you are working from this repository checkout before installing Tach, use:
+
+```bash
+uv run tach mcp
+```
+
+### Client configuration examples
+
+For Claude Desktop or other clients using JSON MCP server configuration:
+
+```json
+{
+  "mcpServers": {
+    "tach": {
+      "command": "tach",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+For a local development checkout:
+
+```json
+{
+  "mcpServers": {
+    "tach": {
+      "command": "uv",
+      "args": ["run", "tach", "mcp"],
+      "cwd": "/path/to/tach"
+    }
+  }
+}
+```
+
+For Codex CLI, add a stdio MCP server entry:
+
+```toml
+[mcp_servers.tach]
+command = "tach"
+args = ["mcp"]
+enabled = true
+```
+
+For a local development checkout:
+
+```toml
+[mcp_servers.tach]
+command = "uv"
+args = ["run", "tach", "mcp"]
+enabled = true
+```
+
+### Available tools
+
+The MCP server exposes nine practical tools rather than one tool per CLI command.
+Large modes return compact summaries by default and include resource URIs or
+explicit full/export modes for larger payloads.
+
+- `tach_onboard` - start here. Returns Tach/MCP versions, install/use hints, resource URIs, configured state, compact project summary, and recommended next actions.
+- `tach_lint` - strong lint entrypoint. Runs boundary, public-interface, external dependency, and unused dependency checks with counts, paginated diagnostics, and focused next actions.
+- `tach_configure` - create config, edit modules/dependencies, sync dependencies, or install the pre-commit hook through one controlled write tool.
+- `tach_imports` - inspect first-party or external imports Tach sees in one Python file.
+- `tach_report` - produce dependency, usage, and optional external dependency reports for a file or directory.
+- `tach_map` - inspect dependency maps, closures, changed files, and changed-file deltas.
+- `tach_graph` - generate a module graph as Mermaid or DOT, compact by default.
+- `tach_modularity` - generate or export the local Gauge modularity report.
+- `tach_test` - run pytest with Tach affected-test filtering and compact stdout/stderr tails.
+
+### Resources and prompts
+
+The server exposes these resources:
+
+- `tach://version` - Tach and MCP protocol version JSON.
+- `tach://project-config/{project_ref}` - full project configuration JSON.
+- `tach://project-summary/{project_ref}` - compact project summary JSON.
+- `tach://project-graph/{project_ref}` - project graph as Mermaid text.
+- `tach://dependency-map/{project_ref}?view=summary|full` - dependency map summary or full JSON.
+- `tach://modularity-report/{project_ref}?view=summary|full` - modularity report summary or full JSON.
+- `tach://delta/{project_ref}/{snapshot_or_ref}` - compact dependency delta JSON.
+
+It also exposes prompts for common agent workflows:
+
+- `diagnose_tach_boundaries` - investigate boundary violations and suggest focused fixes.
+- `plan_tach_modularization` - plan module, utility, dependency, and interface boundaries for a project.
+
+### Example workflows
+
+Inspect a project and check its boundaries:
+
+```text
+Use the tach MCP server. Call tach_onboard for this repository, then
+tach_lint. Summarize any errors by file and module. If dependency rules look
+stale, call tach_configure action="sync_dependencies".
+```
+
+Create a starter config for a small project:
+
+```text
+Use tach_configure action="create_config" with project_root=/path/to/project,
+source_roots=["src"], modules=["api", "services", "models"], and
+dependencies=[{"path": "api", "dependency": "services"},
+{"path": "services", "dependency": "models"}].
+```
+
+Find the dependency closure for one file:
+
+```text
+Use tach_map mode="closure" with direction="dependencies" and
+path="src/api/handler.py". Return the closure as a sorted list.
+```
+
+Generate a graph for documentation:
+
+```text
+Use tach_graph with format="mermaid" and include_full=true.
+Put the returned graph in a Markdown code block for review.
+```
+
+Find affected files without loading the full map:
+
+```text
+Use tach_map mode="delta" with changed=["src/api/handler.py"]. Return
+changed_files, affected_count, and affected.items.
+```
+
+Run affected tests through an agent:
+
+```text
+Use tach_test with base="main" and pytest_args=["-q"]. Report the
+exit code and stdout_tail/stderr_tail.
+```
+
 
 ## tach test
 
