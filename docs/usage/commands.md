@@ -387,7 +387,7 @@ explicit full/export modes for larger payloads.
 
 - `tach_onboard` - start here. Returns Tach/MCP versions, install/use hints, resource URIs, configured state, compact project summary, and recommended next actions.
 - `tach_lint` - strong lint entrypoint. Runs boundary, public-interface, external dependency, and unused dependency checks with counts, paginated diagnostics, and focused next actions.
-- `tach_configure` - create config, edit modules/dependencies, sync dependencies, or install the pre-commit hook through one controlled write tool.
+- `tach_configure` - one controlled write tool for the whole config surface: create config, edit modules/dependencies, set layers (`set_layers`, `set_module_layer`), set module visibility, add/remove public interfaces, deprecate dependencies during migrations, sync dependencies, or install the pre-commit hook.
 - `tach_imports` - inspect first-party or external imports Tach sees in one Python file.
 - `tach_report` - produce dependency, usage, and optional external dependency reports for a file or directory.
 - `tach_map` - inspect dependency maps, closures, changed files, and changed-file deltas.
@@ -429,6 +429,23 @@ Use tach_configure action="create_config" with project_root=/path/to/project,
 source_roots=["src"], modules=["api", "services", "models"], and
 dependencies=[{"path": "api", "dependency": "services"},
 {"path": "services", "dependency": "models"}].
+```
+
+Introduce layered architecture rules:
+
+```text
+Use tach_configure action="set_layers" with layers=["ui", "commands", "core"],
+then action="set_module_layer" per module. Re-run tach_lint to see which
+imports violate the layering.
+```
+
+Expose a public interface and deprecate a legacy edge:
+
+```text
+Use tach_configure action="add_interface" with interface_expose=["get_user",
+"UserDTO"] and interface_from=["accounts"]. Then
+action="deprecate_dependency" with path="billing", dependency="legacy_db" to
+warn on remaining usages while migrating.
 ```
 
 Find the dependency closure for one file:

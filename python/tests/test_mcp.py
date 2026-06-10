@@ -139,6 +139,100 @@ def test_tach_mcp_test_affected():
     assert result["stdout_bytes"] > 0
 
 
+def test_tach_mcp_create_config_emits_editable_format(tmp_path):
+    # The Rust config editor (sync_project/save_edits) silently no-ops on
+    # inline `modules = [{...}]` arrays, so generated configs must use
+    # [[modules]] array-of-tables format.
+    project_root = tmp_path / "project"
+    src = project_root / "src"
+    src.mkdir(parents=True)
+    (src / "module_one.py").write_text("import module_two\n")
+    (src / "module_two.py").write_text("")
+
+    tach_mcp.tach_configure(
+        "create_config",
+        str(project_root),
+        source_roots=["src"],
+        modules=["module_one", "module_two"],
+    )
+    assert "[[modules]]" in (project_root / "tach.toml").read_text()
+
+    synced = tach_mcp.tach_configure("sync_dependencies", str(project_root))
+    assert synced["changed"] is True
+    assert 'depends_on = ["module_two"]' in (project_root / "tach.toml").read_text()
+
+
+def test_tach_mcp_configure_architecture_rules(tmp_path):
+    project_root = tmp_path / "project"
+    src = project_root / "src"
+    src.mkdir(parents=True)
+    (src / "api.py").write_text("import services\n")
+    (src / "services.py").write_text("import models\n")
+    (src / "models.py").write_text("")
+
+    tach_mcp.tach_configure(
+        "create_config",
+        str(project_root),
+        source_roots=["src"],
+        modules=["api", "services", "models"],
+        dependencies=[
+            {"path": "api", "dependency": "services"},
+            {"path": "services", "dependency": "models"},
+        ],
+    )
+
+    layered = tach_mcp.tach_configure(
+        "set_layers",
+        str(project_root),
+        layers=["ui", "commands", "core"],
+    )
+    assert layered["ok"] is True
+    tach_mcp.tach_configure(
+        "set_module_layer", str(project_root), path="api", layer="ui"
+    )
+    visible = tach_mcp.tach_configure(
+        "set_module_visibility",
+        str(project_root),
+        path="models",
+        visibility=["services"],
+    )
+    assert visible["ok"] is True
+
+    deprecated = tach_mcp.tach_configure(
+        "deprecate_dependency",
+        str(project_root),
+        path="services",
+        dependency="models",
+    )
+    assert deprecated["deprecated"] is True
+
+    added = tach_mcp.tach_configure(
+        "add_interface",
+        str(project_root),
+        interface_expose=["get_model"],
+        interface_from=["models"],
+        interface_data_types="primitive",
+    )
+    assert added["ok"] is True
+
+    config_text = (project_root / "tach.toml").read_text()
+    assert 'layers = [\n    "ui",' in config_text
+    assert 'layer = "ui"' in config_text
+    assert "deprecated = true" in config_text
+    assert "[[interfaces]]" in config_text
+
+    lint = tach_mcp.tach_lint(str(project_root), checks="boundaries")
+    assert lint["warning_count"] == 1  # deprecated services -> models usage
+
+    removed = tach_mcp.tach_configure(
+        "remove_interface",
+        str(project_root),
+        interface_expose=["get_model"],
+        interface_from=["models"],
+    )
+    assert removed["removed"] == 1
+
+
 def test_tach_mcp_lint_reports_circular_dependencies_structured(tmp_path):
     project_root = tmp_path / "project"
     src = project_root / "src"

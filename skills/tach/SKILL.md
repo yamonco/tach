@@ -28,8 +28,16 @@ to run `tach mcp`; see docs/usage/commands.md).
 5. **Fix**: either move the import to respect the declared direction, or — if
    the architecture genuinely changed — `tach_configure
    action="edit_dependency"` to update the rules. Prefer fixing code over
-   loosening rules.
-6. **Verify**: re-run `tach_lint`, then `tach_test` (affected tests only) to
+   loosening rules. For a violation that must stay temporarily, add a
+   `# tach-ignore(reason)` comment on the import line instead of deleting the
+   rule — unused or reason-less directives are themselves lintable.
+6. **Architecture rules**: `tach_configure` also writes the higher-level
+   constraints — `action="set_layers"` (ordered layer list, optionally
+   `layers_explicit_depends_on`), `"set_module_layer"`,
+   `"set_module_visibility"`, `"add_interface"` / `"remove_interface"`
+   (public interface per module), and `"deprecate_dependency"` (keep an edge
+   legal but warn on use while migrating off it).
+7. **Verify**: re-run `tach_lint`, then `tach_test` (affected tests only) to
    confirm nothing broke.
 
 ## Token discipline
