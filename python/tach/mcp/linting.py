@@ -4,6 +4,7 @@ from typing import Any
 
 from tach import extension
 from tach.check_external import check_external
+from tach.errors import TachCircularDependencyError, TachVisibilityError
 from tach.mcp.payloads import DEFAULT_LIMIT, truncate_items
 from tach.mcp.project import project_config, resolve_project_root
 from tach.mcp.server import mcp
@@ -83,12 +84,49 @@ def tach_lint(
     ok = True
 
     if "boundaries" in selected:
-        diagnostics = extension.check(
-            project_root=root,
-            project_config=config,
-            dependencies=dependencies,
-            interfaces=interfaces,
-        )
+        try:
+            diagnostics = extension.check(
+                project_root=root,
+                project_config=config,
+                dependencies=dependencies,
+                interfaces=interfaces,
+            )
+        except TachCircularDependencyError as exc:
+            result["boundaries"] = {
+                "ok": False,
+                "circular_dependencies": exc.dependencies,
+            }
+            result["diagnostic_count"] += 1
+            result["error_count"] += 1
+            result["ok"] = False
+            result["next_actions"] = [
+                "Break the cycle by removing one dependency edge listed in "
+                "boundaries.circular_dependencies (tach_configure "
+                "action='edit_dependency', dependency_action='remove').",
+                "Use tach_report on the modules in the cycle to see which "
+                "imports create each edge.",
+            ]
+            return result
+        except TachVisibilityError as exc:
+            result["boundaries"] = {
+                "ok": False,
+                "visibility_errors": [
+                    {
+                        "dependent_module": dependent,
+                        "dependency_module": dependency,
+                        "visibility": visibility,
+                    }
+                    for dependent, dependency, visibility in exc.visibility_errors
+                ],
+            }
+            result["diagnostic_count"] += len(exc.visibility_errors)
+            result["error_count"] += len(exc.visibility_errors)
+            result["ok"] = False
+            result["next_actions"] = [
+                "Adjust 'visibility' on the listed modules in tach.toml, or "
+                "remove the dependency edges that violate it.",
+            ]
+            return result
         diagnostics_data = diagnostics_to_data(diagnostics)
         page = truncate_items(diagnostics_data, limit=limit, offset=offset)
         boundaries_ok = not any(diagnostic.is_error() for diagnostic in diagnostics)
