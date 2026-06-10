@@ -139,6 +139,49 @@ def test_tach_mcp_test_affected():
     assert result["stdout_bytes"] > 0
 
 
+def test_tach_mcp_lint_reports_circular_dependencies_structured(tmp_path):
+    project_root = tmp_path / "project"
+    src = project_root / "src"
+    src.mkdir(parents=True)
+    (src / "module_one.py").write_text("import module_two\n")
+    (src / "module_two.py").write_text("import module_one\n")
+
+    tach_mcp.tach_configure(
+        "create_config",
+        str(project_root),
+        source_roots=["src"],
+        modules=["module_one", "module_two"],
+        dependencies=[
+            {"path": "module_one", "dependency": "module_two"},
+            {"path": "module_two", "dependency": "module_one"},
+        ],
+        forbid_circular_dependencies=True,
+    )
+    assert (
+        "forbid_circular_dependencies = true"
+        in (project_root / "tach.toml").read_text()
+    )
+
+    result = tach_mcp.tach_lint(str(project_root), checks="boundaries")
+
+    assert result["ok"] is False
+    assert result["boundaries"]["ok"] is False
+    assert "module_one" in result["boundaries"]["circular_dependencies"]
+    assert result["next_actions"]
+
+
+def test_tach_mcp_report_is_size_bounded():
+    result = tach_mcp.tach_report(
+        path="domain_two",
+        project_root=str(EXAMPLE_ROOT),
+        max_bytes=50,
+    )
+
+    assert result["report_truncated"] is True
+    assert len(result["report"].encode()) <= 50
+    assert result["report_bytes"] > 50
+
+
 def test_tach_mcp_prompts():
     prompt = tach_mcp.diagnose_tach_boundaries(str(EXAMPLE_ROOT))
 

@@ -151,6 +151,8 @@ def save_config(
     modules: list[str],
     utilities: list[str] | None = None,
     dependencies: list[DependencyRule] | None = None,
+    *,
+    forbid_circular_dependencies: bool = False,
 ) -> ProjectConfig:
     config_path = build_project_config_path(root)
     module_data: list[dict[str, Any]] = [
@@ -168,9 +170,11 @@ def save_config(
             item for item in module_data if item["path"] == dependency["path"]
         )
         module["depends_on"].append({"path": dependency["dependency"]})
-    config_path.write_text(
-        tomli_w.dumps({"source_roots": source_roots, "modules": module_data})
-    )
+    config_data: dict[str, Any] = {"source_roots": source_roots}
+    if forbid_circular_dependencies:
+        config_data["forbid_circular_dependencies"] = True
+    config_data["modules"] = module_data
+    config_path.write_text(tomli_w.dumps(config_data))
     config = parse_project_config(root)
     if config is None:
         raise ValueError(f"Failed to parse new config at '{config_path}'.")

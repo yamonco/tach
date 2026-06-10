@@ -459,6 +459,64 @@ Use tach_test with base="main" and pytest_args=["-q"]. Report the
 exit code and stdout_tail/stderr_tail.
 ```
 
+### Agent skill
+
+Tach ships an [Agent Skill](https://agentskills.io) at
+[`skills/tach/SKILL.md`](https://github.com/gauge-sh/tach/blob/main/skills/tach/SKILL.md)
+that teaches agents the efficient workflow on top of the MCP server: onboard
+first, prefer compact/paginated modes, diagnose with `tach_report`/`tach_map`,
+fix code before loosening rules, and verify with `tach_lint` plus `tach_test`.
+
+`SKILL.md` is a cross-tool format supported by Claude Code, Codex CLI, and
+other agents. Install it by copying the skill directory into your agent's
+skills location:
+
+```bash
+# Claude Code (per project)
+mkdir -p .claude/skills && cp -r skills/tach .claude/skills/
+
+# Claude Code (personal, all projects)
+mkdir -p ~/.claude/skills && cp -r skills/tach ~/.claude/skills/
+
+# Codex CLI
+mkdir -p ~/.agents/skills && cp -r skills/tach ~/.agents/skills/
+```
+
+Once installed, the skill activates automatically when the agent works in a
+repository containing a `tach.toml`, or when asked to enforce or fix module
+boundaries.
+
+### Hooks
+
+For Claude Code, you can add a `PostToolUse` hook so that boundary violations
+introduced while an agent edits code are fed straight back to it, instead of
+surfacing later in CI. Add to your project's `.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && output=$(tach check 2>&1) || { echo \"$output\" >&2; exit 2; }"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Exit code 2 returns the diagnostics to the agent as feedback, so it fixes the
+violation immediately.
+
+For agents and environments without hooks,
+`tach_configure action="install_pre_commit"` (or `tach install pre-commit`)
+provides the same guarantee at commit time.
+
 
 ## tach test
 

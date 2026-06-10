@@ -36,6 +36,7 @@ def tach_configure(
     module_action: Literal["create", "delete", "mark_utility", "unmark_utility"]
     | None = None,
     dependency_action: Literal["add", "remove"] | None = None,
+    forbid_circular_dependencies: bool = False,
     force: bool = False,
     add_only: bool = False,
     include_config: bool = False,
@@ -52,7 +53,14 @@ def tach_configure(
             raise ValueError(
                 f"Config already exists at '{config_path}'. Pass force=true."
             )
-        config = save_config(root, source_roots, modules, utilities, dependencies)
+        config = save_config(
+            root,
+            source_roots,
+            modules,
+            utilities,
+            dependencies,
+            forbid_circular_dependencies=forbid_circular_dependencies,
+        )
         result = {
             "ok": True,
             "action": action,

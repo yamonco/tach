@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from tach.mcp.payloads import DEFAULT_MAX_BYTES, tail_text
 from tach.mcp.project import (
     default_python_file,
     missing_config_result,
@@ -23,6 +24,7 @@ def tach_report(
     raw: bool = False,
     dependency_modules: list[str] | None = None,
     usage_modules: list[str] | None = None,
+    max_bytes: int = DEFAULT_MAX_BYTES,
 ) -> dict[str, Any]:
     """Generate Tach dependency, usage, and optional external dependency report."""
     root = resolve_project_root(project_root)
@@ -56,4 +58,11 @@ def tach_report(
         reports.append(
             external_dependency_report(root, target, project_config=config, raw=raw)
         )
-    return {"mode": "report", "path": str(target), "report": "\n".join(reports)}
+    tail = tail_text("\n".join(reports), max_bytes=max_bytes)
+    return {
+        "mode": "report",
+        "path": str(target),
+        "report": tail["text"],
+        "report_bytes": tail["bytes"],
+        "report_truncated": tail["truncated"],
+    }

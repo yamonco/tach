@@ -171,6 +171,7 @@ layer = "commands"
 [[modules]]
 path = "tach.mcp.reporting"
 depends_on = [
+    "tach.mcp.payloads",
     "tach.mcp.project",
     "tach.mcp.server",
     "tach.report",
