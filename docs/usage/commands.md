@@ -393,6 +393,8 @@ summary is 5.8 KB versus 520.7 KB for the full file-level map (90x, roughly
 full config view, a 386-diagnostic lint run pages at 19.8 KB (or 5.2 KB with
 `limit=10`) versus ~150 KB unpaginated, and the blast radius of editing one
 ORM file — 2,078 affected files — comes back as a 2.9 KB paginated delta.
+Full methodology and a reproducible driver script are in the
+[MCP benchmark](mcp-benchmark.md) page.
 
 - `tach_onboard` - start here. Returns Tach/MCP versions, install/use hints, resource URIs, configured state, compact project summary, and recommended next actions.
 - `tach_lint` - strong lint entrypoint. Runs boundary, public-interface, external dependency, and unused dependency checks with counts, paginated diagnostics, and focused next actions.
