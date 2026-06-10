@@ -5,6 +5,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict
 
+import tomli
 import tomli_w
 
 from tach.filesystem import build_project_config_path, find_project_config_root
@@ -145,6 +146,71 @@ def compact_config_summary(
     }
 
 
+def load_config_toml(root: Path) -> dict[str, Any]:
+    config_path = build_project_config_path(root)
+    if not config_path.exists():
+        raise ValueError(
+            f"No editable 'tach.toml' found at '{config_path}'. Config embedded "
+            "in pyproject.toml must be edited as a file."
+        )
+    with config_path.open("rb") as config_file:
+        return tomli.load(config_file)
+
+
+def _reordered_for_toml(data: dict[str, Any]) -> dict[str, Any]:
+    # tomli_w writes keys in dict order; a top-level scalar emitted after an
+    # array of tables would attach to the last table, so order them first.
+    def is_array_of_tables(value: Any) -> bool:
+        return (
+            isinstance(value, list)
+            and bool(value)
+            and all(isinstance(item, dict) for item in value)
+        )
+
+    simple = {
+        key: value for key, value in data.items() if not is_array_of_tables(value)
+    }
+    tables = {key: value for key, value in data.items() if is_array_of_tables(value)}
+    return {**simple, **tables}
+
+
+def _dumps_tach_toml(config_data: dict[str, Any]) -> str:
+    # Emit modules/interfaces as [[...]] arrays of tables. tomli_w writes
+    # lists of dicts as inline `modules = [{...}]` arrays, which the Rust
+    # config editor (sync_project, add_dependency, save_edits) silently
+    # fails to match and no-ops on.
+    data = _reordered_for_toml(config_data)
+    modules = data.pop("modules", [])
+    interfaces = data.pop("interfaces", [])
+    parts = [tomli_w.dumps(data)] if data else []
+    parts.extend("[[modules]]\n" + tomli_w.dumps(module) for module in modules)
+    parts.extend(
+        "[[interfaces]]\n" + tomli_w.dumps(interface) for interface in interfaces
+    )
+    return "\n".join(parts)
+
+
+def save_config_toml(root: Path, config_data: dict[str, Any]) -> ProjectConfig:
+    config_path = build_project_config_path(root)
+    config_path.write_text(_dumps_tach_toml(config_data))
+    config = parse_project_config(root)
+    if config is None:
+        raise ValueError(f"Failed to parse edited config at '{config_path}'.")
+    return config
+
+
+def find_module_entry(config_data: dict[str, Any], path: str) -> dict[str, Any]:
+    for entry in config_data.get("modules", []):
+        if entry.get("path") == path:
+            return entry
+        if path in entry.get("paths", []):
+            raise ValueError(
+                f"Module '{path}' is declared in a grouped 'paths' entry; "
+                "split it into its own [[modules]] entry in tach.toml first."
+            )
+    raise ValueError(f"Module '{path}' not found in config.")
+
+
 def save_config(
     root: Path,
     source_roots: list[str],
@@ -174,7 +240,7 @@ def save_config(
     if forbid_circular_dependencies:
         config_data["forbid_circular_dependencies"] = True
     config_data["modules"] = module_data
-    config_path.write_text(tomli_w.dumps(config_data))
+    config_path.write_text(_dumps_tach_toml(config_data))
     config = parse_project_config(root)
     if config is None:
         raise ValueError(f"Failed to parse new config at '{config_path}'.")

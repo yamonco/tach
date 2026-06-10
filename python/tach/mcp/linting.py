@@ -192,6 +192,9 @@ def tach_lint(
             "Use tach_report for failing files.",
             "Use tach_configure action='sync_dependencies' if unused or missing dependencies are stale.",
             "Use tach_map mode='delta' to scope changed-file impact before editing.",
+            "For violations that must stay temporarily, add a "
+            "'# tach-ignore(reason)' comment on the import line instead of "
+            "loosening rules.",
         ]
     return result
 
